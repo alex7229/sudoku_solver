@@ -74,9 +74,11 @@ class Sudoku {
         this.previousUsedNumbers = 0;
         this.currentUsedNumbers = 0;
         this.useRandomNumber = false;
+        this.numberCombinations = [];
+        this.backupTable = []
     }
 
-    solve() {
+    solve(justCheck) {
         let i =0;
         while(this.findUsedNumbersCount() !== 81) {
             i++;
@@ -85,11 +87,34 @@ class Sudoku {
             this.currentUsedNumbers = this.findUsedNumbersCount();
             if (this.previousUsedNumbers !== this.currentUsedNumbers) {
                 console.log('use simple calculations');
+                this.numberCombinations = [];
                 this.calculateField()
             } else {
+                if (justCheck) return;
                 console.log('use random');
-                this.useRandomNumber = true;
-                this.calculateField()
+                this.makeBackupField();
+                let errors = false;
+                let row, column, value;
+                for (let j=0; j<10; j++) {
+                    this.getBackupField();
+                    try {
+                        row = this.numberCombinations[j].row;
+                        column = this.numberCombinations[j].column;
+                        value = this.numberCombinations[j].value;
+                        this.table[row][column] = value;
+                        this.solve(true);
+                    } catch (err) {
+                        errors = true;
+                    }
+                    if (!errors) break;
+                }
+                if (!errors) {
+                    this.getBackupField();
+                    this.table[row][column] = value;
+                    this.calculateField();
+                }
+
+
             }
         }
     }
@@ -157,7 +182,6 @@ class Sudoku {
                 throw new Error (`cannot solve cell in row ${row}, column ${column}`)
             }
             if (changeTable) {
-                console.log(possibleNumbers);
                 if (possibleNumbers.length === 1) {
                     this.table[row][column] = possibleNumbers[0]
                 } else if (possibleNumbers.length >=2 ) {
@@ -167,6 +191,11 @@ class Sudoku {
                         numbers.push(true)
                     }
                     possibleNumbers.forEach((possibleNumber, index) => {
+                        this.numberCombinations.push( {
+                            row: row,
+                            column: column,
+                            value: possibleNumber
+                        });
                         try {
                             this.table[row][column] = possibleNumber;
                             this.tryCalculateField()
@@ -186,16 +215,31 @@ class Sudoku {
 
                     if (finalNumbers.length === 1) {
                         this.table[row][column] = finalNumbers[0]
-                    } else if (finalNumbers.length === 2) {
-                        if (this.useRandomNumber) {
-                            console.log('used random shit once');
-                            this.useRandomNumber = false;
-                            this.table[row][column] = finalNumbers[1]
-                        }
                     }
 
 
                 }
+            }
+        }
+    }
+
+
+    makeBackupField () {
+        this.backupTable = [];
+        for (let row =0; row<9; row++) {
+            this.backupTable[row] = [];
+            for (let column=0; column<9; column++) {
+                this.backupTable[row][column] = this.table[row][column]
+            }
+        }
+    }
+
+    getBackupField () {
+        this.table = [];
+        for (let row =0; row<9; row++) {
+            this.table[row] = [];
+            for (let column=0; column<9; column++) {
+                this.table[row][column] = this.backupTable[row][column]
             }
         }
     }
