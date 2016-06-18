@@ -67,43 +67,67 @@ class Sudoku {
 
     constructor (table) {
         this.table = table;
-        this.backupTable = [];
         this.numbers = [];
         this.possibleNumberInRow = [];
         this.possibleNumberInColumn = [];
-        this.possibleNumberInSquare = []
+        this.possibleNumberInSquare = [];
+        this.previousUsedNumbers = 0;
+        this.currentUsedNumbers = 0;
+        this.useRandomNumber = false;
+    }
+
+    solve() {
+        let i =0;
+        while(this.findUsedNumbersCount() !== 81) {
+            i++;
+            if (i>10) break;
+            this.previousUsedNumbers = this.currentUsedNumbers;
+            this.currentUsedNumbers = this.findUsedNumbersCount();
+            if (this.previousUsedNumbers !== this.currentUsedNumbers) {
+                console.log('use simple calculations');
+                this.calculateField()
+            } else {
+                console.log('use random');
+                this.useRandomNumber = true;
+                this.calculateField()
+            }
+        }
     }
 
     calculateField () {
+        let random;
+        mainLoop: for (let i=0; i<9; i++) {
+            for (let j = 0; j < 9; j++) {
+                random = this.useRandomNumber;
+                this.solveNumberInCell(i, j, true);
+                if (random !== this.useRandomNumber) {
+                    break mainLoop
+                }
+            }
+        }
+    }
+
+    tryCalculateField() {
         for (let i=0; i<9; i++) {
             for (let j = 0; j < 9; j++) {
-                this.findNumberInCell(i, j)
+                this.solveNumberInCell(i, j)
             }
         }
     }
 
-    makeBackupField () {
-        this.backupTable = [];
-        for (let row =0; row<9; row++) {
-            this.backupTable[row] = [];
-            for (let column=0; column<9; column++) {
-                this.backupTable[row][column] = this.table[row][column]
-            }
-        }
-    }
-
-    getBackupField () {
-        this.table = [];
-        for (let row =0; row<9; row++) {
-            this.table[row] = [];
-            for (let column=0; column<9; column++) {
-                this.table[row][column] = this.backupTable[row][column]
-            }
-        }
+    findUsedNumbersCount () {
+        let count = 0;
+        this.table.forEach(row => {
+            row.forEach( cell => {
+                if (cell) {
+                    count++
+                }
+            })
+        });
+        return count
     }
 
     findNumberInCell (row, column) {
-        if (!this.table[row][column]) {
             this.findPossibleNumbersInCell(row,column);
             let possibleNumbers = [];
             this.possibleNumberInRow.forEach( number => {
@@ -123,22 +147,54 @@ class Sudoku {
                     possibleNumbers.push(number)
                 }
             });
-            if (possibleNumbers.length === 1 ) {
-                console.log(`row is ${row}, column is ${column}, should be ${possibleNumbers[0]}`);
+            return possibleNumbers;
+    }
+
+    solveNumberInCell (row, column, changeTable) {
+        if (!this.table[row][column]) {
+            let possibleNumbers = this.findNumberInCell(row, column);
+            if (possibleNumbers.length === 0) {
+                throw new Error (`cannot solve cell in row ${row}, column ${column}`)
+            }
+            if (changeTable) {
+                console.log(possibleNumbers);
+                if (possibleNumbers.length === 1) {
                     this.table[row][column] = possibleNumbers[0]
-            } else if (possibleNumbers.length === 0) {
-                console.log(`row is ${row}, column is ${column}`);
-                throw new Error ('cannot solve - there cannot be any number')
-            } else if (possibleNumbers.length === 2) {
-                //try first number, then second
-                this.makeBackupField();
-                this.table[row][column]  = possibleNumbers[0];
-                try {
-                    this.calculateField()
-                } catch (err) {
-                    console.log('find errors');
-                    this.getBackupField();
-                    this.table[row][column] = possibleNumbers[1]
+                } else if (possibleNumbers.length >=2 ) {
+                    //try first number, then second and make backup copy of table
+                    let numbers = [];
+                    for (let i=0; i<possibleNumbers.length; i++) {
+                        numbers.push(true)
+                    }
+                    possibleNumbers.forEach((possibleNumber, index) => {
+                        try {
+                            this.table[row][column] = possibleNumber;
+                            this.tryCalculateField()
+                        } catch (err) {
+                            numbers[index] = false
+                        }
+                        this.table[row][column] = undefined
+                    });
+
+
+                    let finalNumbers = [];
+                    for (let i=0; i<numbers.length; i++) {
+                        if (numbers[i]) {
+                            finalNumbers.push(possibleNumbers[i])
+                        }
+                    }
+
+                    if (finalNumbers.length === 1) {
+                        this.table[row][column] = finalNumbers[0]
+                    } else if (finalNumbers.length === 2) {
+                        if (this.useRandomNumber) {
+                            console.log('used random shit once');
+                            this.useRandomNumber = false;
+                            this.table[row][column] = finalNumbers[1]
+                        }
+                    }
+
+
                 }
             }
         }
@@ -236,7 +292,7 @@ class Draw {
     
 }
 
-let cors = new SubDomainAjax('http://japonskie.ru/sudoku/id/1341');
+let cors = new SubDomainAjax('http://japonskie.ru/sudoku/id/288');
 cors.getHTML()
     .then(result => {
 
@@ -245,12 +301,18 @@ cors.getHTML()
         parse.transformTable();
 
         let sudoku = new Sudoku(parse.table);
-        sudoku.calculateField();
+        sudoku.findUsedNumbersCount();
+        try {
+            sudoku.solve();
+        } catch (err) {
+            console.log(err);
+            let table = new Draw(sudoku.table);
+            table.drawTable();
+        }
 
 
 
-        let table = new Draw(sudoku.table);
-        table.drawTable();
+
 
 
 
